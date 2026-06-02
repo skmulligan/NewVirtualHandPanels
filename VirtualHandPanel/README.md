@@ -18,6 +18,9 @@ These vendor files are intentionally excluded from source control. See
 
 - `Simulator`: launches without microscope access and keeps fake values in memory.
 - `Live TEMScripting`: uses `CoInstrument.Create`, microscope optics/stage APIs, and user-button event sinks.
+- `Compact`: toggled from the top bar. The window shrinks to a focused layout
+  with connect/refresh, selected control, selected preset, jog arrows, beam-shift
+  configuration, and the status log. `Full` restores the previous window size.
 
 ## Keyboard Model
 
