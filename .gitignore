@@ -1,0 +1,33 @@
+# macOS metadata
+.DS_Store
+
+# Delphi/RAD Studio build products
+*.exe
+*.dll
+*.bpl
+*.dcu
+*.dcp
+*.obj
+*.map
+*.rsm
+*.tds
+*.res
+*.local
+*.identcache
+*.stat
+__history/
+ModelSupport_*/
+Win32/
+Win64/
+Debug/
+Release/
+
+# Logs and simulator state
+*.log
+*.dwi
+
+# Vendor/proprietary microscope SDK files.
+# Keep these locally, but do not publish them without confirming the license.
+titan-scripting-krios1/
+hand-panels-krios2/
+hand-panels-krios4/

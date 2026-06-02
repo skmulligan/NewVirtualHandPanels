@@ -1,0 +1,8 @@
+* text=auto
+
+*.pas text
+*.dpr text
+*.md text
+*.txt text
+
+*.ico binary
