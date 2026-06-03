@@ -58,6 +58,7 @@ type
     FJogButtons: array[0..3] of TButton;
     FCompactJogButtons: array[0..3] of TButton;
     FActionButtons: array[TPanelActionId] of TButton;
+    FCompactActionButtons: array[TPanelActionId] of TButton;
     procedure BuildUi;
     procedure BuildCompactUi;
     procedure CreateBackend;
@@ -178,7 +179,7 @@ begin
   FBackendMode.Style := csDropDownList;
   FBackendMode.Items.Add('Simulator');
   FBackendMode.Items.Add('Live TEMScripting');
-  FBackendMode.ItemIndex := 0;
+  FBackendMode.ItemIndex := 1;
 
   FConnectButton := TButton.Create(Self);
   FConnectButton.Parent := FTopPanel;
@@ -410,7 +411,7 @@ begin
   ActionPanel.Left := 290;
   ActionPanel.Top := 60;
   ActionPanel.Width := 410;
-  ActionPanel.Height := 180;
+  ActionPanel.Height := 228;
   ActionPanel.Caption := 'Actions';
 
   for Action := Low(TPanelActionId) to High(TPanelActionId) do
@@ -432,9 +433,9 @@ begin
   FLogMemo := TMemo.Create(Self);
   FLogMemo.Parent := FCenterPanel;
   FLogMemo.Left := 16;
-  FLogMemo.Top := 286;
+  FLogMemo.Top := 320;
   FLogMemo.Width := 720;
-  FLogMemo.Height := 292;
+  FLogMemo.Height := 258;
   FLogMemo.ScrollBars := ssVertical;
   FLogMemo.ReadOnly := True;
 
@@ -443,10 +444,14 @@ end;
 
 procedure TMainForm.BuildCompactUi;
 var
+  ActionPanel: TGroupBox;
   LabelControl: TLabel;
   LabelPreset: TLabel;
   Btn: TButton;
+  Action: TPanelActionId;
   ListIndex: Integer;
+  Col: Integer;
+  Row: Integer;
 begin
   FCompactPanel := TPanel.Create(Self);
   FCompactPanel.Parent := Self;
@@ -485,7 +490,7 @@ begin
   FCompactStatusLabel.Parent := FCompactPanel;
   FCompactStatusLabel.Left := 12;
   FCompactStatusLabel.Top := 42;
-  FCompactStatusLabel.Width := 272;
+  FCompactStatusLabel.Width := 324;
   FCompactStatusLabel.Caption := 'Disconnected';
 
   LabelControl := TLabel.Create(Self);
@@ -498,7 +503,7 @@ begin
   FCompactControlCombo.Parent := FCompactPanel;
   FCompactControlCombo.Left := 88;
   FCompactControlCombo.Top := 68;
-  FCompactControlCombo.Width := 196;
+  FCompactControlCombo.Width := 236;
   FCompactControlCombo.Style := csDropDownList;
   for ListIndex := Low(FControlListIds) to High(FControlListIds) do
     FCompactControlCombo.Items.Add(FControls[FControlListIds[ListIndex]].Caption);
@@ -515,7 +520,7 @@ begin
   FCompactPresetCombo.Parent := FCompactPanel;
   FCompactPresetCombo.Left := 88;
   FCompactPresetCombo.Top := 102;
-  FCompactPresetCombo.Width := 196;
+  FCompactPresetCombo.Width := 236;
   FCompactPresetCombo.Style := csDropDownList;
   FCompactPresetCombo.Items.Add('Fine');
   FCompactPresetCombo.Items.Add('Medium');
@@ -550,7 +555,7 @@ begin
 
   Btn := TButton.Create(Self);
   Btn.Parent := FCompactPanel;
-  Btn.Left := 206;
+  Btn.Left := 226;
   Btn.Top := 134;
   Btn.Width := 42;
   Btn.Height := 30;
@@ -561,7 +566,7 @@ begin
 
   Btn := TButton.Create(Self);
   Btn.Parent := FCompactPanel;
-  Btn.Left := 158;
+  Btn.Left := 178;
   Btn.Top := 170;
   Btn.Width := 42;
   Btn.Height := 30;
@@ -572,7 +577,7 @@ begin
 
   Btn := TButton.Create(Self);
   Btn.Parent := FCompactPanel;
-  Btn.Left := 206;
+  Btn.Left := 226;
   Btn.Top := 170;
   Btn.Width := 42;
   Btn.Height := 30;
@@ -583,7 +588,7 @@ begin
 
   Btn := TButton.Create(Self);
   Btn.Parent := FCompactPanel;
-  Btn.Left := 254;
+  Btn.Left := 274;
   Btn.Top := 170;
   Btn.Width := 42;
   Btn.Height := 30;
@@ -591,6 +596,30 @@ begin
   Btn.Tag := VK_RIGHT;
   Btn.OnClick := JogButtonClick;
   FCompactJogButtons[3] := Btn;
+
+  ActionPanel := TGroupBox.Create(Self);
+  ActionPanel.Parent := FCompactPanel;
+  ActionPanel.Left := 12;
+  ActionPanel.Top := 232;
+  ActionPanel.Width := 324;
+  ActionPanel.Height := 168;
+  ActionPanel.Caption := 'Actions';
+
+  for Action := Low(TPanelActionId) to High(TPanelActionId) do
+  begin
+    Col := Ord(Action) mod 2;
+    Row := Ord(Action) div 2;
+
+    FCompactActionButtons[Action] := TButton.Create(Self);
+    FCompactActionButtons[Action].Parent := ActionPanel;
+    FCompactActionButtons[Action].Left := 12 + Col * 154;
+    FCompactActionButtons[Action].Top := 24 + Row * 34;
+    FCompactActionButtons[Action].Width := 146;
+    FCompactActionButtons[Action].Height := 26;
+    FCompactActionButtons[Action].Caption := PanelActionIdToString(Action);
+    FCompactActionButtons[Action].Tag := Ord(Action);
+    FCompactActionButtons[Action].OnClick := ActionButtonClick;
+  end;
 end;
 
 procedure TMainForm.CreateBackend;
@@ -949,15 +978,15 @@ begin
     FRootPanel.Visible := False;
     FCompactPanel.Visible := True;
     FLogMemo.Parent := FCompactPanel;
-    FLogMemo.SetBounds(12, 238, 284, 94);
-    SetBounds(Left, Top, 320, 380);
+    FLogMemo.SetBounds(12, 410, 324, 110);
+    SetBounds(Left, Top, 360, 560);
   end
   else
   begin
     FCompactPanel.Visible := False;
     FRootPanel.Visible := True;
     FLogMemo.Parent := FCenterPanel;
-    FLogMemo.SetBounds(16, 286, 720, 292);
+    FLogMemo.SetBounds(16, 320, 720, 258);
     if (FNormalBounds.Right > FNormalBounds.Left) and
       (FNormalBounds.Bottom > FNormalBounds.Top) then
       BoundsRect := FNormalBounds;

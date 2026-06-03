@@ -24,8 +24,8 @@ Live mode sends commands to microscope optics, stage, camera screen, and related
 3. Place the generated TEMScripting Delphi units at:
 
    ```text
-   ../titan-scripting-krios1/Delphi/Temscripting_TLB.pas
-   ../titan-scripting-krios1/Delphi/TemscriptingEvents.pas
+   ../titan-scripting-SDK/Delphi/Temscripting_TLB.pas
+   ../titan-scripting-SDK/Delphi/TemscriptingEvents.pas
    ```
 
    The path is relative to `VirtualHandPanel/VirtualHandPanel.dpr`.
@@ -45,4 +45,3 @@ This checkout contains local vendor files and simulator binaries that are intent
 ## License
 
 No open-source license has been selected yet. Until a license is added, this project should be treated as all rights reserved by its owner. Do not publish third-party Thermo/FEI files unless their license explicitly permits redistribution.
-

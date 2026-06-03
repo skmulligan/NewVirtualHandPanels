@@ -5,6 +5,7 @@ interface
 uses
   System.SysUtils,
   System.Classes,
+  System.Variants,
   PanelTypes,
   MicroscopeBackend,
   TEMScriptingEvents,
@@ -280,10 +281,23 @@ end;
 procedure TLiveBackend.ExecuteAction(Action: TPanelActionId);
 var
   Spotsize: Integer;
+  Tem: OleVariant;
 begin
   EnsureConnected;
 
   case Action of
+    paOpenColumnValves:
+      begin
+        Tem := FTem;
+        Tem.Vacuum.ColumnValvesOpen := True;
+        Log('Action complete: column valves opened.');
+      end;
+    paCloseColumnValves:
+      begin
+        Tem := FTem;
+        Tem.Vacuum.ColumnValvesOpen := False;
+        Log('Action complete: column valves closed.');
+      end;
     paScreenLift:
       begin
         FTem.Camera.MainScreen := spUp;

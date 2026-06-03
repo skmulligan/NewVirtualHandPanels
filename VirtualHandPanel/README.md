@@ -8,8 +8,8 @@ Open `VirtualHandPanel.dpr` in Delphi/RAD Studio on the microscope Windows machi
 The project references generated TEMScripting units that should be restored
 locally from the microscope control environment:
 
-- `..\titan-scripting-krios1\Delphi\Temscripting_TLB.pas`
-- `..\titan-scripting-krios1\Delphi\TemscriptingEvents.pas`
+- `..\titan-scripting-SDK\Delphi\Temscripting_TLB.pas`
+- `..\titan-scripting-SDK\Delphi\TemscriptingEvents.pas`
 
 These vendor files are intentionally excluded from source control. See
 `..\VENDOR_DEPENDENCIES.md` before publishing the repository.
@@ -17,10 +17,12 @@ These vendor files are intentionally excluded from source control. See
 ## Modes
 
 - `Simulator`: launches without microscope access and keeps fake values in memory.
-- `Live TEMScripting`: uses `CoInstrument.Create`, microscope optics/stage APIs, and user-button event sinks.
+- `Live TEMScripting`: the default startup mode. Uses `CoInstrument.Create`,
+  microscope optics/stage APIs, and user-button event sinks.
 - `Compact`: toggled from the top bar. The window shrinks to a focused layout
   with connect/refresh, selected control, selected preset, jog arrows, beam-shift
-  configuration, and the status log. `Full` restores the previous window size.
+  configuration, action buttons, and the status log. `Full` restores the
+  previous window size.
 
 ## Keyboard Model
 
@@ -47,6 +49,8 @@ The jog buttons change font color by selected preset: fine is green, medium is y
 
 The action panel sends literal backend commands:
 
+- `Open Column Valves`: opens the microscope column valves.
+- `Close Column Valves`: closes the microscope column valves.
 - `Screen Lift`: sets the main screen to `spUp`.
 - `Screen Down`: sets the main screen to `spDown`.
 - `Reset Defocus`: calls `Projection.ResetDefocus`.

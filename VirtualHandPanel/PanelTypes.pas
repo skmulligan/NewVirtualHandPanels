@@ -19,6 +19,8 @@ type
   TPanelControlKind = (ckScalar, ckVector, ckIndex);
   TStepPreset = (spFine, spMedium, spCoarse);
   TPanelActionId = (
+    paOpenColumnValves,
+    paCloseColumnValves,
     paScreenLift,
     paScreenDown,
     paResetDefocus,
@@ -124,6 +126,8 @@ end;
 function PanelActionIdToString(Action: TPanelActionId): string;
 begin
   case Action of
+    paOpenColumnValves: Result := 'Open Column Valves';
+    paCloseColumnValves: Result := 'Close Column Valves';
     paScreenLift: Result := 'Screen Lift';
     paScreenDown: Result := 'Screen Down';
     paResetDefocus: Result := 'Reset Defocus';

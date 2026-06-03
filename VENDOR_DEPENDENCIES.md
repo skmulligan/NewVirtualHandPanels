@@ -13,9 +13,8 @@ Do not commit or publish those files unless you have confirmed redistribution ri
 The Delphi project currently imports:
 
 ```pascal
-TEMScriptingEvents in '..\titan-scripting-krios1\Delphi\TemscriptingEvents.pas',
-TemScripting_TLB in '..\titan-scripting-krios1\Delphi\Temscripting_TLB.pas';
+TEMScriptingEvents in '..\titan-scripting-SDK\Delphi\TemscriptingEvents.pas',
+TemScripting_TLB in '..\titan-scripting-SDK\Delphi\Temscripting_TLB.pas';
 ```
 
 For local builds, restore those files from the microscope control environment into the expected relative path, or update `VirtualHandPanel/VirtualHandPanel.dpr` to point at your local SDK location.
-

@@ -17,6 +17,7 @@ type
     FUserButtons: TUserButtonStateArray;
     FSpotsizeIndex: Integer;
     FScreenLifted: Boolean;
+    FColumnValvesOpen: Boolean;
     procedure Log(const Text: string);
     procedure InitValues;
     procedure InitUserButtons;
@@ -58,6 +59,7 @@ begin
   FValues[pcMagnificationIndex].Scalar := 20;
   FSpotsizeIndex := 5;
   FScreenLifted := False;
+  FColumnValvesOpen := False;
 end;
 
 procedure TSimulatorBackend.InitUserButtons;
@@ -135,6 +137,16 @@ begin
     raise Exception.Create('Simulator backend is not connected.');
 
   case Action of
+    paOpenColumnValves:
+      begin
+        FColumnValvesOpen := True;
+        Log('Simulator action: column valves opened.');
+      end;
+    paCloseColumnValves:
+      begin
+        FColumnValvesOpen := False;
+        Log('Simulator action: column valves closed.');
+      end;
     paScreenLift:
       begin
         FScreenLifted := True;

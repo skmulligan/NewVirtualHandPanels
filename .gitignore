@@ -28,6 +28,7 @@ Release/
 
 # Vendor/proprietary microscope SDK files.
 # Keep these locally, but do not publish them without confirming the license.
+titan-scripting-SDK/
 titan-scripting-krios1/
 hand-panels-krios2/
 hand-panels-krios4/
