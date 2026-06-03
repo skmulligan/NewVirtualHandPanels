@@ -1,6 +1,6 @@
 # Hand Panels
 
-Virtual hand-panel software for controlling selected Thermo/FEI TEMScripting microscope functions from a small Delphi VCL application.
+Virtual hand-panel software with hotkeys for controlling selected Thermo/FEI TEMScripting microscope functions from a small Delphi VCL application.
 
 The current app is `VirtualHandPanel`, a classic Windows/VCL implementation with two backend modes:
 
