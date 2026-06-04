@@ -10,6 +10,8 @@ uses
   TEMScriptingEvents in '..\titan-scripting-SDK\Delphi\TemscriptingEvents.pas',
   TemScripting_TLB in '..\titan-scripting-SDK\Delphi\Temscripting_TLB.pas';
 
+{$R 'VirtualHandPanel.res' 'VirtualHandPanel.rc'}
+
 begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;

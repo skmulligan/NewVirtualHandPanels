@@ -14,6 +14,11 @@ locally from the microscope control environment:
 These vendor files are intentionally excluded from source control. See
 `..\VENDOR_DEPENDENCIES.md` before publishing the repository.
 
+The application icon is defined in `VirtualHandPanel.rc` and linked by the
+resource directive in `VirtualHandPanel.dpr`. Delphi/RAD Studio compiles that
+resource into `VirtualHandPanel.res` during the build; the generated `.res`
+file is a build product and is intentionally not committed.
+
 ## Modes
 
 - `Simulator`: launches without microscope access and keeps fake values in memory.
