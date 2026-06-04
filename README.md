@@ -11,15 +11,35 @@ The current app is `VirtualHandPanel`, a classic Windows/VCL implementation with
 
 ![Virtual HandPanel Screenshot](img/vhp-fullmini-screenshots.png)
 
+## Modes
+
+- `Live TEMScripting`: the default startup mode. Uses `CoInstrument.Create`,
+  microscope optics/stage APIs, and user-button event sinks.
+- `Compact`: toggled from the top bar. The window shrinks to a focused layout
+  with connect/refresh, selected control, selected preset, jog arrows, beam-shift
+  configuration, action buttons, and the status log. `Full` restores the
+  previous window size.
+- `Simulator`: launches without microscope access and keeps fake values in memory.
+
 ## Repository Contents
 
 - `bin/` contains exe already compiled that can be run on microscope PC
 - `VirtualHandPanel/`: Delphi source for the virtual hand panel.
 - `VENDOR_DEPENDENCIES.md`: notes about external Thermo/FEI TEMScripting files that are required locally but should not be published.
 
-## Safety Notice
+## Hotkeys
 
-Live mode sends commands to microscope optics, stage, camera screen, and related TEMScripting APIs. Review and test changes in simulator mode first, then validate live behavior with an operator who understands the instrument state and local facility procedures.
+- `← ↑ → ↓` Arrow keys jog the selected control using the fine step.
+- `Shift + ← ↑ → ↓` jog the selected control using the coarse step.
+- `Shift+1`: fine step.
+- `Shift+2`: medium step.
+- `Shift+3`: coarse step.
+
+## Running
+
+Download `bin/VirtualHandPanel.exe` to the microscope PC. Start the exe and with `Live TEMScripting` selected (default) press connect button.  Use buttons on program or keyboard hotkeys. 
+
+The detailed control model and hotkeys are documented in `VirtualHandPanel/README.md`.
 
 ## Build
 
@@ -35,12 +55,6 @@ Live mode sends commands to microscope optics, stage, camera screen, and related
    The path is relative to `VirtualHandPanel/VirtualHandPanel.dpr`.
 
 4. Open `VirtualHandPanel/VirtualHandPanel.dpr` in Delphi/RAD Studio and build.
-
-## Running
-
-Start in `Simulator` mode when testing UI and jog behavior. Switch to `Live TEMScripting` only on a machine where TEMScripting is installed and COM access to the microscope is available.
-
-The detailed control model and hotkeys are documented in `VirtualHandPanel/README.md`.
 
 ## License
 
