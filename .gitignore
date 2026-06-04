@@ -3,6 +3,8 @@
 
 # Delphi/RAD Studio build products
 *.exe
+!/bin/
+!/bin/VirtualHandPanel.exe
 *.dll
 *.bpl
 *.dcu
