@@ -9,8 +9,8 @@ The current app is `VirtualHandPanel`, a classic Windows/VCL implementation with
 
 ## Screenshots 
 
-![Virtual HandPanel Full View](img/vhp-full.png)
 ![Virtual HandPanel Mini View](img/vhp-mini.png)
+![Virtual HandPanel Full View](img/vhp-full.png)
 
 ## Repository Contents
 
