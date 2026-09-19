@@ -523,6 +523,7 @@ begin
   FHandPanelView.Initialize;
   FHandPanelView.Visible := False;
   FHandPanelView.BackendIndex := FBackendMode.ItemIndex;
+  FHandPanelView.StepPreset := FPreset;
   FHandPanelView.OnCommand := HandPanelCommand;
 end;
 
@@ -922,6 +923,8 @@ begin
       SetStepPreset(spFine);
     hpcCoarse:
       SetStepPreset(spCoarse);
+    hpcMultifunctionStepsChanged:
+      SetStepPreset(FHandPanelView.StepPreset);
     hpcIntensityDown:
       AdjustPanelControl(pcIntensity, -1);
     hpcIntensityUp:
@@ -1462,6 +1465,8 @@ begin
     if (FCompactPresetCombo <> nil) and
       (FCompactPresetCombo.ItemIndex <> Ord(Preset)) then
       FCompactPresetCombo.ItemIndex := Ord(Preset);
+    if FHandPanelView <> nil then
+      FHandPanelView.StepPreset := Preset;
   finally
     FSyncingCompactControls := False;
   end;

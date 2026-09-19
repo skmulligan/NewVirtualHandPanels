@@ -8,7 +8,8 @@ uses
   Vcl.Controls,
   Vcl.Forms,
   Vcl.ExtCtrls,
-  Vcl.StdCtrls;
+  Vcl.StdCtrls,
+  PanelTypes;
 
 type
   THandPanelCommand = (
@@ -18,6 +19,7 @@ type
     hpcAdvancedView,
     hpcFine,
     hpcCoarse,
+    hpcMultifunctionStepsChanged,
     hpcIntensityDown,
     hpcIntensityUp,
     hpcFocusDown,
@@ -58,6 +60,7 @@ type
     FCanvasPanel: TPanel;
     FBackground: TImage;
     FBackendMode: TComboBox;
+    FMultifunctionSteps: TComboBox;
     FConnectButton: TButton;
     FRefreshButton: TButton;
     FAdvancedButton: TButton;
@@ -73,9 +76,12 @@ type
       const CaptionText, HintText: string; X, Y, W, H: Integer): TButton;
     procedure CommandButtonClick(Sender: TObject);
     procedure BackendModeChanged(Sender: TObject);
+    procedure MultifunctionStepsChanged(Sender: TObject);
     procedure LayoutCanvas;
     function GetBackendIndex: Integer;
     procedure SetBackendIndex(Value: Integer);
+    function GetStepPreset: TStepPreset;
+    procedure SetStepPreset(Value: TStepPreset);
   protected
     procedure Resize; override;
   public
@@ -85,6 +91,7 @@ type
     procedure SetInteractionEnabled(Enabled: Boolean);
     procedure SetStatusText(const Text: string);
     property BackendIndex: Integer read GetBackendIndex write SetBackendIndex;
+    property StepPreset: TStepPreset read GetStepPreset write SetStepPreset;
     property OnCommand: THandPanelCommandEvent read FOnCommand write FOnCommand;
   end;
 
@@ -233,6 +240,8 @@ begin
 end;
 
 procedure THandPanelView.BuildPanelControls;
+var
+  StepsLabel: TLabel;
 begin
   { Sensitivity selectors near the corresponding physical buttons. }
   AddCommandButton(hpcFine, 'Fine', 'Use the fine step/pulse size',
@@ -266,6 +275,28 @@ begin
     1099, 237, 40, 40);
 
   { Context-sensitive microscope multifunction axes. }
+  StepsLabel := TLabel.Create(Self);
+  StepsLabel.Parent := FCanvasPanel;
+  StepsLabel.SetBounds(595, 193, 68, 24);
+  StepsLabel.Caption := 'MF steps';
+  StepsLabel.Font.Name := 'Segoe UI';
+  StepsLabel.Font.Size := 10;
+
+  FMultifunctionSteps := TComboBox.Create(Self);
+  FMultifunctionSteps.Parent := FCanvasPanel;
+  FMultifunctionSteps.SetBounds(665, 189, 238, 28);
+  FMultifunctionSteps.Style := csDropDownList;
+  FMultifunctionSteps.Font.Name := 'Segoe UI';
+  FMultifunctionSteps.Font.Size := 10;
+  FMultifunctionSteps.Items.Add('1 step (Fine)');
+  FMultifunctionSteps.Items.Add('5 steps (Medium)');
+  FMultifunctionSteps.Items.Add('10 steps (Coarse)');
+  FMultifunctionSteps.ItemIndex := Ord(spMedium);
+  FMultifunctionSteps.Hint :=
+    'Steps per MF-X/Y click. Shares the Fine/Medium/Coarse preset with other controls.';
+  FMultifunctionSteps.ShowHint := True;
+  FMultifunctionSteps.OnChange := MultifunctionStepsChanged;
+
   AddCommandButton(hpcMfXDown, 'X -', 'Send negative MF-X pulses',
     595, 237, 48, 40);
   AddCommandButton(hpcMfXUp, 'X +', 'Send positive MF-X pulses',
@@ -329,6 +360,22 @@ begin
     FOnCommand(Self, hpcBackendChanged);
 end;
 
+procedure THandPanelView.MultifunctionStepsChanged(Sender: TObject);
+begin
+  if (FMultifunctionSteps.ItemIndex >= 0) and Assigned(FOnCommand) then
+    FOnCommand(Self, hpcMultifunctionStepsChanged);
+end;
+
+function THandPanelView.GetStepPreset: TStepPreset;
+begin
+  Result := TStepPreset(FMultifunctionSteps.ItemIndex);
+end;
+
+procedure THandPanelView.SetStepPreset(Value: TStepPreset);
+begin
+  FMultifunctionSteps.ItemIndex := Ord(Value);
+end;
+
 procedure THandPanelView.Resize;
 begin
   inherited Resize;
@@ -381,6 +428,7 @@ begin
       FCanvasPanel.Controls[ControlIndex].Enabled := Enabled;
   FConnectButton.Enabled := Enabled;
   FRefreshButton.Enabled := Enabled;
+  FMultifunctionSteps.Enabled := Enabled;
   FBackendMode.Enabled := Enabled and not FConnected;
 end;
 

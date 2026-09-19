@@ -63,8 +63,16 @@ MdlBinding\MF x
 MdlBinding\MF y
 ```
 
-Fine, medium, and coarse modes send signed pulse counts of 1, 5, and 10. The
-simulator logs the same pulse requests without requiring the vendor adapter.
+Use the **MF steps** selector above the X/Y buttons to choose **1**, **5**, or
+**10 steps per click**. It starts at **5 steps (Medium)**; select **10 steps
+(Coarse)** for larger adjustments. The X/Y minus buttons send negative pulses
+and the plus buttons send positive pulses. The simulator logs the same pulse
+requests without requiring the vendor adapter.
+
+This selector shares the app's Fine/Medium/Coarse preset: changing it also
+updates the Advanced and Compact preset selectors. The panel's Fine/Coarse
+buttons and Shift+1/2/3 shortcuts update the MF steps selector too. It is
+disabled while Record Search is active.
 
 The Exposure, Stigmator, Dark Field, Diffraction, Wobbler, alpha/beta tilt, and
 Stage Z positions are present in the visual layout but currently report that
