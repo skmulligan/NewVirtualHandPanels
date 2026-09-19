@@ -1297,6 +1297,13 @@ begin
       Key := 0;
     Exit;
   end;
+  { A focused artwork knob owns its direction keys. Do not also jog the
+    unrelated control selected in Advanced view through KeyPreview. }
+  if FHandPanelMode and (FHandPanelView <> nil) and
+    FHandPanelView.SurfaceHasFocus and
+    (Key in [VK_LEFT, VK_RIGHT, VK_UP, VK_DOWN, VK_SUBTRACT, VK_ADD,
+      VK_OEM_MINUS, VK_OEM_PLUS, VK_SPACE, VK_RETURN, VK_ESCAPE]) then
+    Exit;
   if ssShift in Shift then
   begin
     case Key of

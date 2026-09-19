@@ -41,8 +41,9 @@ be loaded by a Win64 executable.
 
 - `Hand Panel`: the default large-format view. It uses the artwork in
   `..\img\Hand_panels.svg` as its design master and embeds
-  `HandPanelsBackground.png` for dependency-free display on Windows 7. Native
-  VCL buttons overlay the physical control locations. `Advanced` opens the
+  `HandPanelsBackground.png` for dependency-free display on Windows 7. Circular
+  controls use the original artwork as their face, with subtle hover, press,
+  and keyboard-focus feedback. `Advanced` opens the
   detailed control, Record Search, and log view.
 - `Simulator`: launches without microscope access and keeps fake values in memory.
 - `Live TEMScripting`: the default startup mode. Uses `CoInstrument.Create`,
@@ -63,10 +64,11 @@ MdlBinding\MF x
 MdlBinding\MF y
 ```
 
-Use the **MF steps** selector above the X/Y buttons to choose **1**, **5**, or
+Use the **MF steps** selector in the top bar to choose **1**, **5**, or
 **10 steps per click**. It starts at **5 steps (Medium)**; select **10 steps
-(Coarse)** for larger adjustments. The X/Y minus buttons send negative pulses
-and the plus buttons send positive pulses. The simulator logs the same pulse
+(Coarse)** for larger adjustments. Click the left half of an X/Y knob to send
+negative pulses, or the right half to send positive pulses. Small minus/plus
+marks show each direction. The simulator logs the same pulse
 requests without requiring the vendor adapter.
 
 This selector shares the app's Fine/Medium/Coarse preset: changing it also
@@ -74,10 +76,40 @@ updates the Advanced and Compact preset selectors. The panel's Fine/Coarse
 buttons and Shift+1/2/3 shortcuts update the MF steps selector too. It is
 disabled while Record Search is active.
 
-The Exposure, Stigmator, Dark Field, Diffraction, Wobbler, alpha/beta tilt, and
-Stage Z positions are present in the visual layout but currently report that
-they are not wired. This keeps their locations available without guessing at
-unsafe microscope commands.
+The Exposure, Stigmator, Dark Field, Diffraction, Wobbler, Eucentric Focus,
+alpha/beta tilt, and Stage Z positions remain visible as disabled controls
+with a muted slash. No microscope commands have been added for these positions.
+
+## Integrated panel controls
+
+- Intensity, MF-X, MF-Y, magnification, and focus use the existing drawn knob
+  faces. A click sends one adjustment only when released inside the same half;
+  dragging outside or across the center cancels it.
+- Fine/Coarse and L1-L3/R1-R3 use the circles in the artwork. Selected Fine or
+  Coarse buttons have a green outline on both panels.
+- Tab moves focus between available controls. On a focused knob, Left/Down/minus
+  decrease and Right/Up/plus increase. Space activates a focused round button.
+  Commands occur on key release; holding a key does not repeat commands.
+  Escape, lost focus, or disabling the control cancels a pending press.
+- A focused panel control owns its direction keys, so it cannot accidentally
+  jog the unrelated control selected in Advanced view. Shift+1/2/3 still select
+  Fine/Medium/Coarse. Other keyboard jogging keeps its existing behavior.
+- Artwork and hit areas scale from the same 1500 x 612 coordinates. Below 1000
+  logical pixels in width, the panel scrolls instead of shrinking controls further.
+- Record Search disables all panel commands until the search finishes.
+
+The implementation is in `PanelSurfaceControl.pas` and `HandPanelView.pas`.
+The existing PNG and embedded resource do not need regenerating for this style.
+
+### Windows verification after rebuilding
+
+Build `VirtualHandPanel.dpr` as Win32, then connect to Simulator. Check MF-X and
+MF-Y in both directions at 1, 5, and 10 steps; the log must show exactly one
+signed pulse request per click or key release. Check that dragging off a knob,
+holding a key, and pressing Escape do not send extra commands. Verify Fine/Coarse
+selection in both views, Tab/Space activation, and disabled controls during
+Record Search. Resize the window and check alignment at 100%, 125%, and 150%
+Windows display scaling before using the rebuilt application on the microscope.
 
 ## Record Search
 

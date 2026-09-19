@@ -4,6 +4,7 @@ uses
   Vcl.Forms,
   MainForm in 'MainForm.pas' {frmMain},
   HandPanelView in 'HandPanelView.pas',
+  PanelSurfaceControl in 'PanelSurfaceControl.pas',
   PanelTypes in 'PanelTypes.pas',
   StageSearch in 'StageSearch.pas',
   MicroscopeBackend in 'MicroscopeBackend.pas',

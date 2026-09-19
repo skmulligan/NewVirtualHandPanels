@@ -14,7 +14,8 @@ The current app is `VirtualHandPanel`, a classic Windows/VCL implementation with
 ## Modes
 
 - `Hand Panel`: the default large view, based on `img/Hand_panels.svg`, with
-  large native controls placed over the physical hand-panel locations.
+  clickable circular controls integrated into the artwork. Knob halves provide
+  minus/plus adjustments, and the top bar selects 1, 5, or 10 MF steps per click.
 - `Live TEMScripting`: the default startup mode. Uses `CoInstrument.Create`,
   microscope optics/stage APIs, and user-button event sinks.
 - `Compact`: toggled from the top bar. The window shrinks to a focused layout

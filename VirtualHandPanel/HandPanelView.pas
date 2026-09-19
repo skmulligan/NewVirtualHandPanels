@@ -9,6 +9,7 @@ uses
   Vcl.Forms,
   Vcl.ExtCtrls,
   Vcl.StdCtrls,
+  PanelSurfaceControl,
   PanelTypes;
 
 type
@@ -61,23 +62,29 @@ type
     FBackground: TImage;
     FBackendMode: TComboBox;
     FMultifunctionSteps: TComboBox;
+    FStepsLabel: TLabel;
     FConnectButton: TButton;
     FRefreshButton: TButton;
     FAdvancedButton: TButton;
     FStatusLabel: TLabel;
     FConnected: Boolean;
     FInitialized: Boolean;
-    FCommandButtons: array[THandPanelCommand] of TButton;
     FOnCommand: THandPanelCommandEvent;
     procedure BuildUi;
     procedure BuildPanelControls;
     procedure LoadBackground;
     function AddCommandButton(Command: THandPanelCommand;
       const CaptionText, HintText: string; X, Y, W, H: Integer): TButton;
+    function AddSurface(Command: THandPanelCommand; const LabelText: string;
+      X, Y, Diameter: Integer; Available: Boolean = True): TPanelSurfaceControl;
+    procedure AddKnob(NegativeCommand, PositiveCommand: THandPanelCommand;
+      const LabelText: string; X, Y, Diameter: Integer);
+    procedure SurfaceInvoked(Sender: TObject; Direction: Integer);
     procedure CommandButtonClick(Sender: TObject);
     procedure BackendModeChanged(Sender: TObject);
     procedure MultifunctionStepsChanged(Sender: TObject);
     procedure LayoutCanvas;
+    procedure LayoutHeader;
     function GetBackendIndex: Integer;
     procedure SetBackendIndex(Value: Integer);
     function GetStepPreset: TStepPreset;
@@ -90,6 +97,7 @@ type
     procedure SetConnected(Connected: Boolean);
     procedure SetInteractionEnabled(Enabled: Boolean);
     procedure SetStatusText(const Text: string);
+    function SurfaceHasFocus: Boolean;
     property BackendIndex: Integer read GetBackendIndex write SetBackendIndex;
     property StepPreset: TStepPreset read GetStepPreset write SetStepPreset;
     property OnCommand: THandPanelCommandEvent read FOnCommand write FOnCommand;
@@ -99,6 +107,8 @@ implementation
 
 uses
   System.SysUtils,
+  System.Math,
+  System.Types,
   Vcl.Graphics,
   Vcl.Imaging.pngimage;
 
@@ -132,6 +142,8 @@ begin
   FHeader.Height := 64;
   FHeader.BevelOuter := bvNone;
   FHeader.Color := RGB(45, 50, 55);
+  FHeader.ParentBackground := False;
+  FHeader.StyleElements := FHeader.StyleElements - [seClient];
 
   FBackendMode := TComboBox.Create(Self);
   FBackendMode.Parent := FHeader;
@@ -159,6 +171,24 @@ begin
   FStatusLabel.Font.Size := 11;
   FStatusLabel.Caption := 'Disconnected';
 
+  FStepsLabel := TLabel.Create(Self);
+  FStepsLabel.Parent := FHeader;
+  FStepsLabel.Caption := 'MF steps';
+  FStepsLabel.Font.Color := clWhite;
+  FStepsLabel.Font.Size := 10;
+
+  FMultifunctionSteps := TComboBox.Create(Self);
+  FMultifunctionSteps.Parent := FHeader;
+  FMultifunctionSteps.Style := csDropDownList;
+  FMultifunctionSteps.Items.Add('1 step (Fine)');
+  FMultifunctionSteps.Items.Add('5 steps (Medium)');
+  FMultifunctionSteps.Items.Add('10 steps (Coarse)');
+  FMultifunctionSteps.ItemIndex := Ord(spMedium);
+  FMultifunctionSteps.Hint :=
+    'Steps per MF-X/Y click. Shares the Fine/Medium/Coarse preset with other controls.';
+  FMultifunctionSteps.ShowHint := True;
+  FMultifunctionSteps.OnChange := MultifunctionStepsChanged;
+
   FAdvancedButton := AddCommandButton(hpcAdvancedView, 'Advanced',
     'Open the detailed controls, Record Search, and event log',
     1362, 12, 122, 38);
@@ -180,11 +210,12 @@ begin
   FBackground.Parent := FCanvasPanel;
   FBackground.Align := alClient;
   FBackground.Stretch := True;
-  FBackground.Proportional := True;
+  FBackground.Proportional := False;
   FBackground.Center := True;
   LoadBackground;
 
   BuildPanelControls;
+  LayoutHeader;
   LayoutCanvas;
 end;
 
@@ -226,7 +257,7 @@ function THandPanelView.AddCommandButton(Command: THandPanelCommand;
   const CaptionText, HintText: string; X, Y, W, H: Integer): TButton;
 begin
   Result := TButton.Create(Self);
-  Result.Parent := FCanvasPanel;
+  Result.Parent := FHeader;
   Result.SetBounds(X, Y, W, H);
   Result.Caption := CaptionText;
   Result.Hint := HintText;
@@ -236,116 +267,93 @@ begin
   Result.Font.Size := 10;
   Result.Font.Style := [fsBold];
   Result.OnClick := CommandButtonClick;
-  FCommandButtons[Command] := Result;
+end;
+
+function THandPanelView.AddSurface(Command: THandPanelCommand;
+  const LabelText: string; X, Y, Diameter: Integer;
+  Available: Boolean): TPanelSurfaceControl;
+begin
+  Result := TPanelSurfaceControl.Create(Self);
+  Result.Parent := FCanvasPanel;
+  Result.Artwork := FBackground.Picture;
+  Result.DesignBounds := Rect(X, Y, X + Diameter, Y + Diameter);
+  Result.SetBounds(X, Y, Diameter, Diameter);
+  Result.Caption := LabelText;
+  Result.Hint := LabelText;
+  if not Available then
+    Result.Hint := LabelText + ' (not available)';
+  Result.Available := Available;
+  Result.Enabled := Available;
+  Result.Tag := Ord(Command);
+  Result.PositiveCommand := Ord(Command);
+  Result.OnInvoke := SurfaceInvoked;
+end;
+
+procedure THandPanelView.AddKnob(NegativeCommand,
+  PositiveCommand: THandPanelCommand; const LabelText: string;
+  X, Y, Diameter: Integer);
+var
+  Knob: TPanelSurfaceControl;
+begin
+  Knob := AddSurface(NegativeCommand, LabelText, X, Y, Diameter);
+  Knob.Split := True;
+  Knob.PositiveCommand := Ord(PositiveCommand);
+  Knob.Hint := LabelText + ': left half decreases, right half increases. '
+    + 'When focused, use arrow keys or minus/plus; release to send one command.';
 end;
 
 procedure THandPanelView.BuildPanelControls;
-var
-  StepsLabel: TLabel;
 begin
-  { Sensitivity selectors near the corresponding physical buttons. }
-  AddCommandButton(hpcFine, 'Fine', 'Use the fine step/pulse size',
-    374, 143, 72, 38);
-  AddCommandButton(hpcCoarse, 'Coarse', 'Use the coarse step/pulse size',
-    450, 143, 78, 38);
-  AddCommandButton(hpcFine, 'Fine', 'Use the fine step/pulse size',
-    588, 143, 72, 38);
-  AddCommandButton(hpcCoarse, 'Coarse', 'Use the coarse step/pulse size',
-    664, 143, 78, 38);
+  { All coordinates refer to the unscaled 1500 x 612 background. Each hit
+    area is centered on the face already drawn in the artwork. }
+  AddSurface(hpcFine, 'Fine', 392, 143, 38);
+  AddSurface(hpcCoarse, 'Coarse', 435, 143, 38);
+  AddSurface(hpcFine, 'Fine', 603, 143, 38);
+  AddSurface(hpcCoarse, 'Coarse', 645, 143, 38);
 
-  AddCommandButton(hpcExposure, 'Exposure',
-    'Panel position reserved; backend command is not yet available',
-    496, 143, 88, 38);
-  AddCommandButton(hpcStigmator, 'Stigmator',
-    'Panel position reserved; backend command is not yet available',
-    493, 239, 94, 38);
+  AddSurface(hpcExposure, 'Exposure', 519, 143, 38, False);
+  AddSurface(hpcStigmator, 'Stigmator', 518, 237, 38, False);
 
-  { Direct TEMScripting controls. }
-  AddCommandButton(hpcIntensityDown, '-', 'Decrease intensity',
-    382, 237, 40, 40);
-  AddCommandButton(hpcIntensityUp, '+', 'Increase intensity',
-    426, 237, 40, 40);
-  AddCommandButton(hpcMagnificationDown, '-', 'Decrease magnification index',
-    924, 237, 40, 40);
-  AddCommandButton(hpcMagnificationUp, '+', 'Increase magnification index',
-    968, 237, 40, 40);
-  AddCommandButton(hpcFocusDown, '-', 'Decrease focus',
-    1055, 237, 40, 40);
-  AddCommandButton(hpcFocusUp, '+', 'Increase focus',
-    1099, 237, 40, 40);
+  AddKnob(hpcIntensityDown, hpcIntensityUp, 'Intensity', 394, 227, 56);
+  AddKnob(hpcMfXDown, hpcMfXUp, 'Multifunction X', 613, 224, 56);
+  AddKnob(hpcMfYDown, hpcMfYUp, 'Multifunction Y', 822, 224, 56);
+  AddKnob(hpcMagnificationDown, hpcMagnificationUp,
+    'Magnification', 938, 220, 56);
+  AddKnob(hpcFocusDown, hpcFocusUp, 'Focus', 1066, 215, 60);
 
-  { Context-sensitive microscope multifunction axes. }
-  StepsLabel := TLabel.Create(Self);
-  StepsLabel.Parent := FCanvasPanel;
-  StepsLabel.SetBounds(595, 193, 68, 24);
-  StepsLabel.Caption := 'MF steps';
-  StepsLabel.Font.Name := 'Segoe UI';
-  StepsLabel.Font.Size := 10;
+  AddSurface(hpcDarkField, 'Dark Field', 831, 143, 38, False);
+  AddSurface(hpcDiffraction, 'Diffraction', 945, 143, 38, False);
+  AddSurface(hpcWobbler, 'Wobbler', 1035, 143, 38, False);
+  AddSurface(hpcEucentricFocus, 'Eucentric Focus', 1111, 143, 38, False);
 
-  FMultifunctionSteps := TComboBox.Create(Self);
-  FMultifunctionSteps.Parent := FCanvasPanel;
-  FMultifunctionSteps.SetBounds(665, 189, 238, 28);
-  FMultifunctionSteps.Style := csDropDownList;
-  FMultifunctionSteps.Font.Name := 'Segoe UI';
-  FMultifunctionSteps.Font.Size := 10;
-  FMultifunctionSteps.Items.Add('1 step (Fine)');
-  FMultifunctionSteps.Items.Add('5 steps (Medium)');
-  FMultifunctionSteps.Items.Add('10 steps (Coarse)');
-  FMultifunctionSteps.ItemIndex := Ord(spMedium);
-  FMultifunctionSteps.Hint :=
-    'Steps per MF-X/Y click. Shares the Fine/Medium/Coarse preset with other controls.';
-  FMultifunctionSteps.ShowHint := True;
-  FMultifunctionSteps.OnChange := MultifunctionStepsChanged;
+  AddSurface(hpcAlphaTiltDown, 'Alpha tilt decrease', 76, 155, 38, False);
+  AddSurface(hpcAlphaTiltUp, 'Alpha tilt increase', 120, 155, 38, False);
+  AddSurface(hpcBetaTiltDown, 'Beta tilt decrease', 98, 222, 38, False);
+  AddSurface(hpcBetaTiltUp, 'Beta tilt increase', 96, 280, 38, False);
+  AddSurface(hpcStageZUp, 'Stage Z increase', 1369, 210, 38, False);
+  AddSurface(hpcStageZDown, 'Stage Z decrease', 1370, 267, 38, False);
 
-  AddCommandButton(hpcMfXDown, 'X -', 'Send negative MF-X pulses',
-    595, 237, 48, 40);
-  AddCommandButton(hpcMfXUp, 'X +', 'Send positive MF-X pulses',
-    647, 237, 48, 40);
-  AddCommandButton(hpcMfYDown, 'Y -', 'Send negative MF-Y pulses',
-    803, 237, 48, 40);
-  AddCommandButton(hpcMfYUp, 'Y +', 'Send positive MF-Y pulses',
-    855, 237, 48, 40);
+  AddSurface(hpcUserL1, 'User button L1', 669, 315, 40);
+  AddSurface(hpcUserL2, 'User button L2', 669, 362, 40);
+  AddSurface(hpcUserL3, 'User button L3', 669, 409, 40);
+  AddSurface(hpcUserR1, 'User button R1', 787, 315, 40);
+  AddSurface(hpcUserR2, 'User button R2', 787, 362, 40);
+  AddSurface(hpcUserR3, 'User button R3', 787, 409, 40);
+end;
 
-  { Right-hand action row. }
-  AddCommandButton(hpcDarkField, 'Dark Field',
-    'Panel position reserved; backend command is not yet available',
-    803, 143, 92, 38);
-  AddCommandButton(hpcDiffraction, 'Diffraction',
-    'Panel position reserved; backend command is not yet available',
-    912, 143, 96, 38);
-  AddCommandButton(hpcWobbler, 'Wobbler',
-    'Panel position reserved; backend command is not yet available',
-    1012, 143, 84, 38);
-  AddCommandButton(hpcEucentricFocus, 'Euc. Focus',
-    'Request eucentric focus', 1100, 143, 96, 38);
-
-  { Stage tilt/Z positions retained as explicit placeholders. }
-  AddCommandButton(hpcBetaTiltDown, 'beta -',
-    'Panel position reserved; backend command is not yet available',
-    68, 191, 64, 34);
-  AddCommandButton(hpcBetaTiltUp, 'beta +',
-    'Panel position reserved; backend command is not yet available',
-    68, 229, 64, 34);
-  AddCommandButton(hpcAlphaTiltDown, 'alpha -',
-    'Panel position reserved; backend command is not yet available',
-    68, 267, 64, 34);
-  AddCommandButton(hpcAlphaTiltUp, 'alpha +',
-    'Panel position reserved; backend command is not yet available',
-    68, 305, 64, 34);
-  AddCommandButton(hpcStageZUp, 'Z +',
-    'Panel position reserved; backend command is not yet available',
-    1352, 210, 72, 38);
-  AddCommandButton(hpcStageZDown, 'Z -',
-    'Panel position reserved; backend command is not yet available',
-    1352, 260, 72, 38);
-
-  { Six user-button locations. }
-  AddCommandButton(hpcUserL1, 'L1', 'User button L1', 649, 316, 72, 38);
-  AddCommandButton(hpcUserL2, 'L2', 'User button L2', 649, 364, 72, 38);
-  AddCommandButton(hpcUserL3, 'L3', 'User button L3', 649, 412, 72, 38);
-  AddCommandButton(hpcUserR1, 'R1', 'User button R1', 771, 316, 72, 38);
-  AddCommandButton(hpcUserR2, 'R2', 'User button R2', 771, 364, 72, 38);
-  AddCommandButton(hpcUserR3, 'R3', 'User button R3', 771, 412, 72, 38);
+procedure THandPanelView.SurfaceInvoked(Sender: TObject; Direction: Integer);
+var
+  Surface: TPanelSurfaceControl;
+  Command: THandPanelCommand;
+begin
+  Surface := Sender as TPanelSurfaceControl;
+  if not Surface.Enabled or not Surface.Available or not Assigned(FOnCommand) then
+    Exit;
+  if Direction > 0 then
+    Command := THandPanelCommand(Surface.PositiveCommand)
+  else
+    Command := THandPanelCommand(Surface.Tag);
+  FOnCommand(Self, Command);
 end;
 
 procedure THandPanelView.CommandButtonClick(Sender: TObject);
@@ -372,30 +380,101 @@ begin
 end;
 
 procedure THandPanelView.SetStepPreset(Value: TStepPreset);
+var
+  Index: Integer;
+  Surface: TPanelSurfaceControl;
 begin
   FMultifunctionSteps.ItemIndex := Ord(Value);
+  for Index := 0 to FCanvasPanel.ControlCount - 1 do
+    if FCanvasPanel.Controls[Index] is TPanelSurfaceControl then
+    begin
+      Surface := TPanelSurfaceControl(FCanvasPanel.Controls[Index]);
+      Surface.Selected := ((Surface.Tag = Ord(hpcFine)) and (Value = spFine)) or
+        ((Surface.Tag = Ord(hpcCoarse)) and (Value = spCoarse));
+    end;
 end;
 
 procedure THandPanelView.Resize;
 begin
   inherited Resize;
+  LayoutHeader;
   LayoutCanvas;
-  if FAdvancedButton <> nil then
-    FAdvancedButton.Left := ClientWidth - FAdvancedButton.Width - 16;
 end;
 
 procedure THandPanelView.LayoutCanvas;
+var
+  CanvasWidth, CanvasHeight, CanvasLeft, CanvasTop: Integer;
+  Index: Integer;
+  Bounds: TRect;
+  Surface: TPanelSurfaceControl;
 begin
   if (FScrollBox = nil) or (FCanvasPanel = nil) then
     Exit;
-  if FScrollBox.ClientWidth > PANEL_WIDTH then
-    FCanvasPanel.Left := (FScrollBox.ClientWidth - PANEL_WIDTH) div 2
+  { Below 1000 logical pixels, scroll rather than shrinking hit areas further. }
+  CanvasWidth := Max(MulDiv(1000, Font.PixelsPerInch, 96), FScrollBox.ClientWidth);
+  CanvasHeight := MulDiv(CanvasWidth, PANEL_HEIGHT, PANEL_WIDTH);
+  CanvasLeft := Max(0, (FScrollBox.ClientWidth - CanvasWidth) div 2);
+  CanvasTop := Max(0, (FScrollBox.ClientHeight - CanvasHeight) div 2);
+  FCanvasPanel.SetBounds(CanvasLeft - FScrollBox.HorzScrollBar.Position,
+    CanvasTop - FScrollBox.VertScrollBar.Position, CanvasWidth, CanvasHeight);
+  for Index := 0 to FCanvasPanel.ControlCount - 1 do
+    if FCanvasPanel.Controls[Index] is TPanelSurfaceControl then
+    begin
+      Surface := TPanelSurfaceControl(FCanvasPanel.Controls[Index]);
+      Bounds := Surface.DesignBounds;
+      Surface.SetBounds(MulDiv(Bounds.Left, CanvasWidth, PANEL_WIDTH),
+        MulDiv(Bounds.Top, CanvasHeight, PANEL_HEIGHT),
+        MulDiv(Bounds.Right - Bounds.Left, CanvasWidth, PANEL_WIDTH),
+        MulDiv(Bounds.Bottom - Bounds.Top, CanvasHeight, PANEL_HEIGHT));
+      Surface.Invalidate;
+    end;
+end;
+
+procedure THandPanelView.LayoutHeader;
+var
+  ScalePPI: Integer;
+  StepsY, StatusY: Integer;
+  function S(Value: Integer): Integer;
+  begin
+    Result := MulDiv(Value, ScalePPI, 96);
+  end;
+begin
+  if (FAdvancedButton = nil) or (FMultifunctionSteps = nil) then
+    Exit;
+  ScalePPI := Font.PixelsPerInch;
+  FBackendMode.SetBounds(S(16), S(17), S(190), S(28));
+  FConnectButton.SetBounds(S(220), S(12), S(116), S(38));
+  FRefreshButton.SetBounds(S(348), S(12), S(104), S(38));
+  if ClientWidth >= S(940) then
+  begin
+    StepsY := 12;
+    StatusY := 54;
+    FStepsLabel.SetBounds(S(478), S(23), S(76), S(22));
+    FMultifunctionSteps.SetBounds(S(556), S(18), S(210), S(28));
+  end
   else
-    FCanvasPanel.Left := 0;
-  if FScrollBox.ClientHeight > PANEL_HEIGHT then
-    FCanvasPanel.Top := (FScrollBox.ClientHeight - PANEL_HEIGHT) div 2
-  else
-    FCanvasPanel.Top := 0;
+  begin
+    StepsY := 58;
+    StatusY := 100;
+    FStepsLabel.SetBounds(S(16), S(69), S(76), S(22));
+    FMultifunctionSteps.SetBounds(S(96), S(64), S(210), S(28));
+  end;
+  FAdvancedButton.SetBounds(Max(S(320), ClientWidth - S(138)),
+    S(StepsY), S(122), S(38));
+  FStatusLabel.SetBounds(S(16), S(StatusY), Max(S(100), ClientWidth - S(32)), S(24));
+  FStatusLabel.EllipsisPosition := epEndEllipsis;
+  FHeader.Height := S(StatusY + 32);
+end;
+
+function THandPanelView.SurfaceHasFocus: Boolean;
+var
+  Index: Integer;
+begin
+  Result := False;
+  for Index := 0 to FCanvasPanel.ControlCount - 1 do
+    if (FCanvasPanel.Controls[Index] is TPanelSurfaceControl) and
+      TPanelSurfaceControl(FCanvasPanel.Controls[Index]).Focused then
+      Exit(True);
 end;
 
 function THandPanelView.GetBackendIndex: Integer;
@@ -424,8 +503,9 @@ var
   ControlIndex: Integer;
 begin
   for ControlIndex := 0 to FCanvasPanel.ControlCount - 1 do
-    if FCanvasPanel.Controls[ControlIndex] is TButton then
-      FCanvasPanel.Controls[ControlIndex].Enabled := Enabled;
+    if FCanvasPanel.Controls[ControlIndex] is TPanelSurfaceControl then
+      FCanvasPanel.Controls[ControlIndex].Enabled := Enabled and
+        TPanelSurfaceControl(FCanvasPanel.Controls[ControlIndex]).Available;
   FConnectButton.Enabled := Enabled;
   FRefreshButton.Enabled := Enabled;
   FMultifunctionSteps.Enabled := Enabled;
