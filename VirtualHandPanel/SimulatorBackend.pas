@@ -4,8 +4,10 @@ interface
 
 uses
   System.SysUtils,
+  System.SyncObjs,
   PanelTypes,
-  MicroscopeBackend;
+  MicroscopeBackend,
+  StageSearch;
 
 type
   TSimulatorBackend = class(TInterfacedObject, IMicroscopeBackend)
@@ -18,11 +20,13 @@ type
     FSpotsizeIndex: Integer;
     FScreenLifted: Boolean;
     FColumnValvesOpen: Boolean;
+    FLock: TCriticalSection;
     procedure Log(const Text: string);
     procedure InitValues;
     procedure InitUserButtons;
   public
     constructor Create;
+    destructor Destroy; override;
     procedure SetLogHandler(Handler: TBackendLogEvent);
     procedure SetUserButtonPressedHandler(Handler: TUserButtonPressedEvent);
     function BackendName: string;
@@ -32,17 +36,125 @@ type
     function ReadControl(Id: TPanelControlId): TControlValue;
     procedure WriteControl(Id: TPanelControlId; const Value: TControlValue);
     procedure ExecuteAction(Action: TPanelActionId);
+    procedure SendMultifunctionPulse(Axis: TMultifunctionAxis; Pulses: Integer);
+    function CreateStageMotionSession: IStageMotionSession;
     function RefreshUserButtons: TUserButtonStateArray;
     procedure SimulateUserButtonPress(Slot: TUserButtonSlot);
   end;
 
 implementation
 
+uses
+  System.Classes,
+  Winapi.Windows;
+
+type
+  TSimulatorStageMotionSession = class(TInterfacedObject, IStageMotionSession)
+  private
+    FOwner: TSimulatorBackend;
+    FOpen: Boolean;
+    procedure EnsureOpen;
+  public
+    constructor Create(AOwner: TSimulatorBackend);
+    procedure Open;
+    procedure Close;
+    function GetPosition: TStagePoint;
+    function GetLimits: TStageLimits;
+    function IsReady: Boolean;
+    procedure MoveAxisTo(Axis: TStageAxis; TargetUm, SpeedFraction: Double);
+  end;
+
+constructor TSimulatorStageMotionSession.Create(AOwner: TSimulatorBackend);
+begin
+  inherited Create;
+  FOwner := AOwner;
+end;
+
+procedure TSimulatorStageMotionSession.EnsureOpen;
+begin
+  if not FOpen then
+    raise Exception.Create('Simulator stage motion session is not open.');
+end;
+
+procedure TSimulatorStageMotionSession.Open;
+begin
+  FOwner.FLock.Acquire;
+  try
+    if not FOwner.FConnected then
+      raise Exception.Create('Simulator backend is not connected.');
+    FOpen := True;
+  finally
+    FOwner.FLock.Release;
+  end;
+end;
+
+procedure TSimulatorStageMotionSession.Close;
+begin
+  FOpen := False;
+end;
+
+function TSimulatorStageMotionSession.GetPosition: TStagePoint;
+begin
+  EnsureOpen;
+  FOwner.FLock.Acquire;
+  try
+    Result.X := FOwner.FValues[pcStage].X;
+    Result.Y := FOwner.FValues[pcStage].Y;
+  finally
+    FOwner.FLock.Release;
+  end;
+end;
+
+function TSimulatorStageMotionSession.GetLimits: TStageLimits;
+begin
+  EnsureOpen;
+  Result.MinX := -1000;
+  Result.MaxX := 1000;
+  Result.MinY := -1000;
+  Result.MaxY := 1000;
+end;
+
+function TSimulatorStageMotionSession.IsReady: Boolean;
+begin
+  EnsureOpen;
+  FOwner.FLock.Acquire;
+  try
+    Result := FOwner.FConnected;
+  finally
+    FOwner.FLock.Release;
+  end;
+end;
+
+procedure TSimulatorStageMotionSession.MoveAxisTo(Axis: TStageAxis;
+  TargetUm, SpeedFraction: Double);
+begin
+  EnsureOpen;
+  FOwner.FLock.Acquire;
+  try
+    if not FOwner.FConnected then
+      raise Exception.Create('Simulator backend disconnected during Record Search.');
+    if Axis = saX then
+      FOwner.FValues[pcStage].X := TargetUm
+    else
+      FOwner.FValues[pcStage].Y := TargetUm;
+  finally
+    FOwner.FLock.Release;
+  end;
+  Sleep(100);
+end;
+
 constructor TSimulatorBackend.Create;
 begin
   inherited Create;
+  FLock := TCriticalSection.Create;
   InitValues;
   InitUserButtons;
+end;
+
+destructor TSimulatorBackend.Destroy;
+begin
+  FLock.Free;
+  inherited Destroy;
 end;
 
 procedure TSimulatorBackend.InitValues;
@@ -117,16 +229,26 @@ end;
 
 function TSimulatorBackend.ReadControl(Id: TPanelControlId): TControlValue;
 begin
-  if not FConnected then
-    raise Exception.Create('Simulator backend is not connected.');
-  Result := FValues[Id];
+  FLock.Acquire;
+  try
+    if not FConnected then
+      raise Exception.Create('Simulator backend is not connected.');
+    Result := FValues[Id];
+  finally
+    FLock.Release;
+  end;
 end;
 
 procedure TSimulatorBackend.WriteControl(Id: TPanelControlId; const Value: TControlValue);
 begin
-  if not FConnected then
-    raise Exception.Create('Simulator backend is not connected.');
-  FValues[Id] := Value;
+  FLock.Acquire;
+  try
+    if not FConnected then
+      raise Exception.Create('Simulator backend is not connected.');
+    FValues[Id] := Value;
+  finally
+    FLock.Release;
+  end;
   Log(Format('Simulator set %s to scalar=%0.6f x=%0.6f y=%0.6f',
     [PanelControlIdToString(Id), Value.Scalar, Value.X, Value.Y]));
 end;
@@ -177,6 +299,27 @@ begin
         Log('Simulator action: spotsize index ' + IntToStr(FSpotsizeIndex) + '.');
       end;
   end;
+end;
+
+procedure TSimulatorBackend.SendMultifunctionPulse(Axis: TMultifunctionAxis;
+  Pulses: Integer);
+var
+  AxisName: string;
+begin
+  if not FConnected then
+    raise Exception.Create('Simulator backend is not connected.');
+  if Axis = maX then
+    AxisName := 'X'
+  else
+    AxisName := 'Y';
+  Log(Format('Simulator MF-%s pulse: %d.', [AxisName, Pulses]));
+end;
+
+function TSimulatorBackend.CreateStageMotionSession: IStageMotionSession;
+begin
+  if not FConnected then
+    raise Exception.Create('Simulator backend is not connected.');
+  Result := TSimulatorStageMotionSession.Create(Self);
 end;
 
 function TSimulatorBackend.RefreshUserButtons: TUserButtonStateArray;

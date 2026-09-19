@@ -18,6 +18,7 @@ type
 
   TPanelControlKind = (ckScalar, ckVector, ckIndex);
   TStepPreset = (spFine, spMedium, spCoarse);
+  TMultifunctionAxis = (maX, maY);
   TPanelActionId = (
     paOpenColumnValves,
     paCloseColumnValves,

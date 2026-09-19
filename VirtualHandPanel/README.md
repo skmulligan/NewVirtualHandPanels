@@ -11,6 +11,10 @@ locally from the microscope control environment:
 - `..\titan-scripting-SDK\Delphi\Temscripting_TLB.pas`
 - `..\titan-scripting-SDK\Delphi\TemscriptingEvents.pas`
 
+`StageSearchTests.dpr` is a separate console test project for Record FOV math,
+input validation, and the initial square-spiral sequence. Build and run it with
+the same Delphi compiler before rebuilding the main executable.
+
 These vendor files are intentionally excluded from source control. See
 `..\VENDOR_DEPENDENCIES.md` before publishing the repository.
 
@@ -19,15 +23,85 @@ resource directive in `VirtualHandPanel.dpr`. Delphi/RAD Studio compiles that
 resource into `VirtualHandPanel.res` during the build; the generated `.res`
 file is a build product and is intentionally not committed.
 
+The hand-panel PNG is linked through the checked-in `HandPanelAssets.res`.
+Keeping it separate prevents RAD Studio's application-resource generation from
+replacing the background resource, and the checked-in file avoids requiring the
+IDE to compile a secondary `.rc` file. If the PNG changes, regenerate the file
+with `build_hand_panel_resource.py` or compile `HandPanelAssets.rc` with
+`brcc32` on Windows.
+
+If the resource is deliberately omitted, the program also looks for a file
+named `HandPanelsBackground.png` beside `VirtualHandPanel.exe` at runtime.
+
+Build the application for the **Win32** target. The microscope's
+`adaFsKnob.adaFsKnob` COM adapter is an in-process 32-bit component and cannot
+be loaded by a Win64 executable.
+
 ## Modes
 
+- `Hand Panel`: the default large-format view. It uses the artwork in
+  `..\img\Hand_panels.svg` as its design master and embeds
+  `HandPanelsBackground.png` for dependency-free display on Windows 7. Native
+  VCL buttons overlay the physical control locations. `Advanced` opens the
+  detailed control, Record Search, and log view.
 - `Simulator`: launches without microscope access and keeps fake values in memory.
 - `Live TEMScripting`: the default startup mode. Uses `CoInstrument.Create`,
   microscope optics/stage APIs, and user-button event sinks.
 - `Compact`: toggled from the top bar. The window shrinks to a focused layout
   with connect/refresh, selected control, selected preset, jog arrows, beam-shift
-  configuration, action buttons, and the status log. `Full` restores the
+  configuration, action buttons, Record Search, and the status log. `Full` restores the
   previous window size.
+
+## Multifunction knobs
+
+The large Hand Panel view sends contextual MF-X and MF-Y pulses through the
+microscope-installed `adaFsKnob.adaFsKnob` COM server. The live backend lazily
+creates two adapters and initializes these model bindings:
+
+```text
+MdlBinding\MF x
+MdlBinding\MF y
+```
+
+Fine, medium, and coarse modes send signed pulse counts of 1, 5, and 10. The
+simulator logs the same pulse requests without requiring the vendor adapter.
+
+The Exposure, Stigmator, Dark Field, Diffraction, Wobbler, alpha/beta tilt, and
+Stage Z positions are present in the visual layout but currently report that
+they are not wired. This keeps their locations available without guessing at
+unsafe microscope commands.
+
+## Record Search
+
+Record Search supports the Record-to-View image-shift calibration workflow without
+controlling SerialEM directly:
+
+1. Start continuous Preview acquisition with the SerialEM Record preset.
+2. Enter the Record pixel size in Angstroms per pixel. The image dimensions default
+   to a full-frame K3 image (`5760 x 4092`) and remain editable for cropped or binned
+   Record images.
+3. Review the calculated field of view and 75% X/Y stride, then press `Start Search`
+   and confirm the motion summary.
+4. When the target feature is visible, press `Stop Search`. The stage stays at the
+   last completed short submove instead of returning to the starting point.
+
+The path starts to the right and continues up, left, and down as an outward square
+spiral with leg lengths `1, 1, 2, 2, 3, 3...`. X and Y strides use 75% of the
+corresponding Record dimension, giving 25% overlap when camera and stage axes align.
+Each stride is divided into commands no larger than 10% of that frame dimension.
+
+Defaults and safety behavior:
+
+- Stage speed: 10% of normal TEMScripting speed, editable from 0.1% to 100%.
+- Search extent: +/-10 um independently on X and Y.
+- Hardware XY limits are read before motion and checked before every command.
+- The stage must report ready before starting; each command has a 30-second ready timeout.
+- Jogging, actions, refresh, and disconnect controls are disabled while searching.
+- Closing the application requests Stop and waits for the active short submove.
+- The simulator uses the same geometry and exposes the complete Start/Stop workflow.
+
+The TEMScripting stage API has no command for aborting an active move. Stop therefore
+prevents the next submove; it cannot interrupt the submove already sent to the stage.
 
 ## Keyboard Model
 
