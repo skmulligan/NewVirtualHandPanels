@@ -40,7 +40,7 @@ be loaded by a Win64 executable.
 ## Modes
 
 - `Hand Panel`: the default large-format view. It uses the artwork in
-  `..\img\Hand_panels.svg` as its design master and embeds
+  `..\img\editable\HandPanels.svg` as its design master and embeds
   `HandPanelsBackground.png` for dependency-free display on Windows 7. Circular
   controls use the original artwork as their face, with subtle hover, press,
   and keyboard-focus feedback. `Advanced` opens the
