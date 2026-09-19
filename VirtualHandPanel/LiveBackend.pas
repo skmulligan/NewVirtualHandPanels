@@ -8,6 +8,7 @@ uses
   System.Variants,
   PanelTypes,
   MicroscopeBackend,
+  StageSearch,
   TEMScriptingEvents,
   TemScripting_TLB;
 
@@ -22,11 +23,15 @@ type
     FButton: array[TUserButtonSlot] of UserButton;
     FButtonEvents: array[TUserButtonSlot] of TUserButtonEvent;
     FUserButtons: TUserButtonStateArray;
+    FMultifunctionX: OleVariant;
+    FMultifunctionY: OleVariant;
     procedure Log(const Text: string);
     procedure EnsureConnected;
     procedure EnsureUserButtons;
     procedure ConnectUserButtonEvents;
     procedure DisconnectUserButtonEvents;
+    procedure EnsureMultifunctionKnobs;
+    procedure CloseMultifunctionKnobs;
     procedure UserButtonPressed(Sender: TObject);
   public
     constructor Create;
@@ -40,11 +45,132 @@ type
     function ReadControl(Id: TPanelControlId): TControlValue;
     procedure WriteControl(Id: TPanelControlId; const Value: TControlValue);
     procedure ExecuteAction(Action: TPanelActionId);
+    procedure SendMultifunctionPulse(Axis: TMultifunctionAxis; Pulses: Integer);
+    function CreateStageMotionSession: IStageMotionSession;
     function RefreshUserButtons: TUserButtonStateArray;
     procedure SimulateUserButtonPress(Slot: TUserButtonSlot);
   end;
 
 implementation
+
+uses
+  Winapi.Windows,
+  Winapi.ActiveX,
+  System.Win.ComObj;
+
+type
+  TLiveStageMotionSession = class(TInterfacedObject, IStageMotionSession)
+  private
+    FTem: Instrument;
+    FComInitialized: Boolean;
+    procedure EnsureOpen;
+  public
+    destructor Destroy; override;
+    procedure Open;
+    procedure Close;
+    function GetPosition: TStagePoint;
+    function GetLimits: TStageLimits;
+    function IsReady: Boolean;
+    procedure MoveAxisTo(Axis: TStageAxis; TargetUm, SpeedFraction: Double);
+  end;
+
+procedure TLiveStageMotionSession.EnsureOpen;
+begin
+  if FTem = nil then
+    raise Exception.Create('Live stage motion session is not open.');
+end;
+
+destructor TLiveStageMotionSession.Destroy;
+begin
+  Close;
+  inherited Destroy;
+end;
+
+procedure TLiveStageMotionSession.Open;
+var
+  Hr: HRESULT;
+begin
+  if FTem <> nil then
+    Exit;
+  Hr := CoInitializeEx(nil, COINIT_APARTMENTTHREADED);
+  if (Hr <> S_OK) and (Hr <> S_FALSE) then
+    raise Exception.CreateFmt('Could not initialize COM for stage motion (0x%.8x).',
+      [Cardinal(Hr)]);
+  FComInitialized := True;
+  try
+    FTem := CoInstrument.Create;
+  except
+    Close;
+    raise;
+  end;
+end;
+
+procedure TLiveStageMotionSession.Close;
+begin
+  FTem := nil;
+  if FComInitialized then
+  begin
+    CoUninitialize;
+    FComInitialized := False;
+  end;
+end;
+
+function TLiveStageMotionSession.GetPosition: TStagePoint;
+var
+  Pos: StagePosition;
+begin
+  EnsureOpen;
+  Pos := FTem.Stage.Position;
+  Result.X := Pos.X * 1e6;
+  Result.Y := Pos.Y * 1e6;
+end;
+
+function TLiveStageMotionSession.GetLimits: TStageLimits;
+var
+  XData: StageAxisData;
+  YData: StageAxisData;
+begin
+  EnsureOpen;
+  XData := FTem.Stage.AxisData[axisX];
+  YData := FTem.Stage.AxisData[axisY];
+  if (XData = nil) or (YData = nil) or
+    (XData.UnitType <> MeasurementUnitType_Meters) or
+    (YData.UnitType <> MeasurementUnitType_Meters) then
+    raise Exception.Create('Could not read stage XY limits in meters.');
+  Result.MinX := XData.MinPos * 1e6;
+  Result.MaxX := XData.MaxPos * 1e6;
+  Result.MinY := YData.MinPos * 1e6;
+  Result.MaxY := YData.MaxPos * 1e6;
+  if (Result.MinX >= Result.MaxX) or (Result.MinY >= Result.MaxY) then
+    raise Exception.Create('Stage reported invalid XY limit ranges.');
+end;
+
+function TLiveStageMotionSession.IsReady: Boolean;
+begin
+  EnsureOpen;
+  Result := FTem.Stage.Status = stReady;
+end;
+
+procedure TLiveStageMotionSession.MoveAxisTo(Axis: TStageAxis;
+  TargetUm, SpeedFraction: Double);
+var
+  Pos: StagePosition;
+  Mask: StageAxes;
+begin
+  EnsureOpen;
+  Pos := FTem.Stage.Position;
+  if Axis = saX then
+  begin
+    Pos.X := TargetUm / 1e6;
+    Mask := axisX;
+  end
+  else
+  begin
+    Pos.Y := TargetUm / 1e6;
+    Mask := axisY;
+  end;
+  FTem.Stage.GotoWithSpeed(Pos, Mask, SpeedFraction);
+end;
 
 constructor TLiveBackend.Create;
 var
@@ -129,11 +255,55 @@ end;
 
 procedure TLiveBackend.Disconnect;
 begin
+  CloseMultifunctionKnobs;
   DisconnectUserButtonEvents;
   FButtons := nil;
   FTem := nil;
   FConnected := False;
   Log('Disconnected from TEMScripting instrument.');
+end;
+
+procedure TLiveBackend.EnsureMultifunctionKnobs;
+begin
+  EnsureConnected;
+  if not VarIsEmpty(FMultifunctionX) and not VarIsEmpty(FMultifunctionY) then
+    Exit;
+
+  CloseMultifunctionKnobs;
+  try
+    FMultifunctionX := CreateOleObject('adaFsKnob.adaFsKnob');
+    FMultifunctionX.Init('', 'MdlBinding\MF x');
+    FMultifunctionY := CreateOleObject('adaFsKnob.adaFsKnob');
+    FMultifunctionY.Init('', 'MdlBinding\MF y');
+    Log('Connected generic MF-X and MF-Y knob bindings.');
+  except
+    CloseMultifunctionKnobs;
+    raise Exception.Create(
+      'Could not initialize adaFsKnob MF-X/MF-Y bindings. Build and run the '
+      + 'application as Win32 on the microscope computer.');
+  end;
+end;
+
+procedure TLiveBackend.CloseMultifunctionKnobs;
+begin
+  if not VarIsEmpty(FMultifunctionX) then
+  begin
+    try
+      FMultifunctionX.Close;
+    except
+      { Preserve shutdown even if the microscope adapter is already gone. }
+    end;
+  end;
+  if not VarIsEmpty(FMultifunctionY) then
+  begin
+    try
+      FMultifunctionY.Close;
+    except
+      { Preserve shutdown even if the microscope adapter is already gone. }
+    end;
+  end;
+  FMultifunctionX := Unassigned;
+  FMultifunctionY := Unassigned;
 end;
 
 procedure TLiveBackend.EnsureUserButtons;
@@ -334,6 +504,31 @@ begin
         Log('Action complete: spotsize index ' + IntToStr(Spotsize) + '.');
       end;
   end;
+end;
+
+procedure TLiveBackend.SendMultifunctionPulse(Axis: TMultifunctionAxis;
+  Pulses: Integer);
+var
+  AxisName: string;
+begin
+  EnsureMultifunctionKnobs;
+  if Axis = maX then
+  begin
+    FMultifunctionX.SimulatePulse(Pulses);
+    AxisName := 'X';
+  end
+  else
+  begin
+    FMultifunctionY.SimulatePulse(Pulses);
+    AxisName := 'Y';
+  end;
+  Log(Format('Sent MF-%s pulse: %d.', [AxisName, Pulses]));
+end;
+
+function TLiveBackend.CreateStageMotionSession: IStageMotionSession;
+begin
+  EnsureConnected;
+  Result := TLiveStageMotionSession.Create;
 end;
 
 function TLiveBackend.RefreshUserButtons: TUserButtonStateArray;

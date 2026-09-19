@@ -14,6 +14,7 @@
 *.rsm
 *.tds
 *.res
+!VirtualHandPanel/HandPanelAssets.res
 *.local
 *.identcache
 *.stat

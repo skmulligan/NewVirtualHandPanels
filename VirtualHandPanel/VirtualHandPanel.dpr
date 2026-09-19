@@ -3,7 +3,9 @@ program VirtualHandPanel;
 uses
   Vcl.Forms,
   MainForm in 'MainForm.pas' {frmMain},
+  HandPanelView in 'HandPanelView.pas',
   PanelTypes in 'PanelTypes.pas',
+  StageSearch in 'StageSearch.pas',
   MicroscopeBackend in 'MicroscopeBackend.pas',
   SimulatorBackend in 'SimulatorBackend.pas',
   LiveBackend in 'LiveBackend.pas',
@@ -11,6 +13,7 @@ uses
   TemScripting_TLB in '..\titan-scripting-SDK\Delphi\Temscripting_TLB.pas';
 
 {$R 'VirtualHandPanel.res' 'VirtualHandPanel.rc'}
+{$R 'HandPanelAssets.res'}
 
 begin
   Application.Initialize;
